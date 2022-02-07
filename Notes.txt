@@ -1,0 +1,389 @@
+----------------MODULE-17----------------
+
+Step 1- create src+index.js 
+        install express do setup
+step 2- create public dir + index.html
+        - to connect index.js and index.html write the following code
+
+EX-1>------------
+const path = require("path")
+const express = require("express")
+
+const app=express()
+
+const port = process.env.PORT||3000;
+const publicDirectoryPath= path.join(__dirname,"../public")
+
+app.use(express.static(publicDirectoryPath))
+
+app.listen(port,()=>{
+    console.log(`Server is up on port ${port}!`)
+})
+---------------------
+
+-----------------------153. WebSockets----------
+
+WebSocket allow for full-duplex communication
+
+clint can initialte communication with server and vicevarsa
+WebSocket is a separate protocol from HTTP
+persistent connection between client and server
+
+Client-1->server
+(my new message)
+Server ->client-2
+        ->client-3
+        ->client-4
+(Other side message)
+
+------------------------154. Getting Started with Socket.io--------------
+
+npm i socket.io@2.2.0
+
+
+const io=socketio(server)//support web socket
+
+    -now we can config index.js to actualy work with client connect to it
+
+//when given client 
+io.on("connection",()=>{
+    console.log("New web socket connected")
+})
+this function will fire whet we get new "connection"
+
+
+--------index.html------------
+
+//clint side library in clint side html code
+    script src="/socket.io/socket.io.js"></script>
+
+connect html with  chat.js
+        to connect write 
+            io()- function to connect
+now web server is connected to server
+
+
+------------------155. Socket.io Events-------------------
+
+
+let count= 0
+
+io.on("connection",(socket)=>{
+    console.log("New web socket connection")
+
+    socket.emit("countUpdated")
+})
+
+here socket argument is an object which contin new info about new connection
+
+    -if we have 5 client connected to the server above function will run for 5 different times
+    -one time for each new connection
+    - above function is sending and reciving events
+
+socket.emit -for sending request
+
+countUpdated- builted event
+            - it send initionl count to clientt
+            -further to send any changeg to the count
+
+EX-1>
+----------index.js (server)------------
+let count= 0
+
+io.on("connection",(socket)=>{
+    console.log("New web socket connection")
+
+    socket.emit("countUpdated",count)
+    
+    socket.on("increment",()=>{ 
+        count++
+        // socket.emit("countUpdated",count)// this will send data to only one client (need to refrace page to get data)
+        io.emit("countUpdated",count)//for send data to every client connected (no need to refrace page to get data)
+    })
+})
+
+-----chat.js(client)-----------------------------
+
+socket.on("countUpdated",(count)=>{//clinet event and server event name shoul be same
+    console.log("The count has been updated!", count)
+    console.log(count)
+})
+
+document.querySelector("#increment").addEventListener("click",()=>{
+    console.log("Clicked")
+    socket.emit("increment")
+})
+
+io.on --> do two thing
+1> server (emit)-> client (receive) -countUpdated
+2> client (emit)-> server (receive) -increment
+
+
+------------------156. Socket.io Events Challenge--------------------------
+
+EX-1>
+
+---index.js(server)
+
+io.on("connection",(socket)=>{
+    console.log("New web socket connection")
+
+    socket.emit("message","Welcome!")
+
+    socket.on("sendMessage",(message)=>{
+        io.emit("message",message)// sending to all user
+    })
+})
+
+--chat.js--------------
+
+document.querySelector("#message-form").addEventListener("submit",(e)=>{
+    e.preventDefault()
+
+    const message= document.querySelector("input").value// getting type message 
+    console.log(message)
+
+    socket.emit("sendMessage",message)// sending to server
+})
+
+now all clin are connected can send message to each other
+
+tow to get value of input box
+    -const message=e.target.elements.message
+
+    -const message= document.querySelector("input").value
+
+
+------------------157. Broadcasting Events------------------
+
+give us to prectical feature for our chat application
+    1> if new user join all other connected users will have little message showup
+    (new user enter in chat room)
+    same when a user live the chat room (all will get message)
+
+
+socket.emit--for single user
+io.emit--for all user
+socket.broadcast.emit-- for all except 1 user(socket)
+
+when user join---
+    -socket.broadcast.emit("message", "A new user has join")
+    -it will send message to all connected user except new join user
+
+when user LogOut
+-------
+socket.on("disconnect",()=>{
+    io.emit("message","A user has Left!")
+})
+
+no need to use broadcast because this user is disconnect(left user)
+
+
+--------------158. Sharing Your Location----------------
+
+for getting user location we will we running client side java script code
+    - using browser geoLocation api( for fatching longitude and latitude)
+    ref-https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API
+    api doc
+
+
+EX-1>
+
+--chat.js (client)---
+document.querySelector("#send-location")
+.addEventListener("click",()=>{
+
+    if(!navigator.geolocation){
+        return alert("Geolocation is not supported by ypur browser.")
+    }   
+    
+    navigator.geolocation.getCurrentPosition((position)=>{
+        console.log(position)
+
+        socket.emit("sendLocation",{
+            latitude:position.coords.latitude,
+            longitude:position.coords.longitude
+        })
+    })
+})
+
+---index.js(server)-------
+
+socket.on("sendLocation",(coords)=>{
+    io.emit("message",`google.com/maps?q=${coords.latitude},${coords.longitude}`)--note-1
+})
+
+note-1 google.com/maps?q=${coords.latitude},${coords.longitude}
+        this is nothing but google url  for finding location
+
+
+----------------------159. Event Acknowledgements-------------------
+
+-->server(emit) ->cient(receive) --acknowledgement --> server
+-->client (emit) -> server(recive) --acknowledgement  -->server
+
+EX-1>
+
+--chat.js(client)
+socket.emit("sendMessage",message,()=>{
+    console.log("The message was delivered")
+})
+
+--index.js(server)---------
+
+socket.on("sendMessage",(message,callback)=>{
+    io.emit("message",message)
+    callback()
+}
+
+here we are calling callback function after message delivered
+which give Acknowledgements
+
+// to Avoid bad chat----------
+    npm i bad-words@3.0.0
+
+EX-4>
+
+---index.js (server)------------------
+
+ socket.on("sendMessage",(message,callback)=>{
+    const filter =new Filter()
+
+        if(filter.isProfane(message)){
+        return callback("Profanity is not allowed!")
+    }
+
+    io.emit("message",message)
+    callback("Delivered!")
+})
+
+
+----------chat.js (client)------------------
+
+socket.emit("sendMessage",message,(error)=>{
+    if(error){
+        return console.log(error)
+    }
+    console.log("Message delivered!")
+})
+
+
+--------------161. Rendering Messages-----------------
+
+
+ref-https://gist.github.com/andrewjmead/3e3e310aea27f10f7f1ce506b39dfcbe
+
+
+socket.on("message",(message)=>{
+    console.log(message)
+    const html= Mustache.render(messageTemplate)
+    $messages.insertAdjacentHTML('beforeend',html)//+ new message before-end of the div
+})
+
+EX-1--chat.js//for re-randering the things
+
+const html = Mustache.render(messageTemplate, {
+        message
+    })
+$messages.insertAdjacentHTML('beforeend', html)-notes-1
+
+notes-1 add message at the end of the div tag
+
+
+----------------163. Working with Time-----------------
+
+to generate timestemp we can use inbuild javascript
+
+const now = new Date()
+
+now.toString()
+
+O.P-'Mon Feb 07 2022 04:12:34 GMT+0530 (India Standard Time)'
+
+//allow to take any part of the date
+now.getDate()
+
+O/P 7
+
+now.getTime()
+1644187354029
+
+
+ref-https://momentjs.com/
+
+ref-2--https://momentjs.com/docs/#/displaying/
+
+//fixing data 
+
+load library
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js"></script>
+
+createdAt:moment(message.createdAt).format()//2022-02-07T04:37:39+05:30
+
+
+--------------165. Styling the Chat App-----------------
+
+ref-- css -folder-->http://links.mead.io/chatassets
+
+
+
+-------------------------------------
+// for accessing url 
+location.search
+'?username=vishwajeet&room=hello'
+
+we need to send this query string using 3rd librayr in chat.html 
+fire--><script src="https://cdnjs.cloudflare.com/ajax/libs/qs/6.6.0/qs.min.js"></script>
+
+
+qs.parse(location.search,{ignoreQueryPrefix:true})
+    - for accessing the url
+    -ignoreQueryPrefix for removing ? at starting 
+
+socket.emit("join",{
+    username,
+    room
+})//clien -server
+
+
+io.to.emit-- send message to all in a rrom not in other room
+socket.io.broadcast.emit-send to every on except a client in a room not in other room
+
+socket.broadcast.to(room).emit("message",generateMessage( "A new user has join"))
+    - need to pass room variable fro specifying the room
+
+---------------------168. Storing Users: Part I---------------------
+
+storing the user info
+
+and show in side bar
+
+--To remove user------------
+const removeUser=(id)=>{
+     const index=users.findIndex((user)=>user.id===id)
+
+     if(index !==-1){
+         return users.splice(index,1)[0]--note-1
+     }
+ }
+note-1 is faster then fileter because filter is keep running after finding match
+
+
+---------------170.------------------------
+
+EX-1
+
+socket.on('join',({username,room},callback)=>{
+        const {error,user}=addUser({id: socket.id,username,room})
+
+        if(error){
+            return callback(error)
+        }
+
+        socket.join(user.room)// for join two chat room
+
+        socket.emit("message",generateMessage("Welcome!"))
+        socket.broadcast.to(user.room).emit("message",generateMessage(`${user.username} has joined!`))
+        callback()
+    })
